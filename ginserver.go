@@ -29,6 +29,8 @@ type Config struct {
 	IdleTimeout     time.Duration `env:"IDLE_TIMEOUT" envDefault:"60s"`
 	ShutdownTimeout time.Duration `env:"SHUTDOWN_TIMEOUT" envDefault:"10s"`
 	TrustedProxies  []string      `env:"TRUSTED_PROXIES"`
+	// DisablePing отключает встроенный GET /ping (200 без тела), включён по умолчанию.
+	DisablePing bool `env:"DISABLE_PING"`
 }
 
 func (c *Config) withDefaults() {
@@ -78,6 +80,17 @@ func WithMiddleware(mw ...gin.HandlerFunc) Option {
 	return func(s *Server) { s.extra = append(s.extra, mw...) }
 }
 
+// WithoutPing отключает встроенный GET /ping.
+func WithoutPing() Option {
+	return func(s *Server) { s.cfg.DisablePing = true }
+}
+
+// PingPath — путь встроенного ping.
+const PingPath = "/ping"
+
+// PingHandler — 200 без тела. Публичный, чтобы можно было повесить и вручную.
+func PingHandler(c *gin.Context) { c.Status(http.StatusOK) }
+
 // Routes — функция регистрации маршрутов.
 type Routes func(r gin.IRouter)
 
@@ -97,6 +110,9 @@ func New(cfg Config, routes Routes, opts ...Option) *Server {
 	e.Use(RequestID(), Recovery(s.log), AccessLog(s.log))
 	if len(s.extra) > 0 {
 		e.Use(s.extra...)
+	}
+	if !s.cfg.DisablePing {
+		e.GET(PingPath, PingHandler) // по умолчанию: GET /ping -> 200 без тела
 	}
 	if routes != nil {
 		routes(e)
