@@ -50,17 +50,51 @@ func Recovery(log logger.Logger) gin.HandlerFunc {
 	}
 }
 
-// AccessLog — одна строка на запрос.
-func AccessLog(log logger.Logger) gin.HandlerFunc {
+// RequestLogger — обязательный логгер каждого запроса: одна запись на запрос
+// после его завершения. Ставится сервером всегда (см. New), отключить нельзя;
+// настраивается только сам логгер (WithLogger).
+//
+// Поля: method, path (сырой), route (шаблон gin, если совпал), status,
+// duration_ms, bytes (размер ответа), client_ip, request_id, errors (если есть).
+// Уровень: 5xx -> error, 4xx -> warn, иначе info.
+func RequestLogger(log logger.Logger) gin.HandlerFunc {
+	if log == nil {
+		log = logger.Nop{}
+	}
 	return func(c *gin.Context) {
 		start := time.Now()
 		c.Next()
-		log.Info(c.Request.Context(), "http request",
-			"method", c.Request.Method, "path", c.Request.URL.Path,
-			"status", c.Writer.Status(), "dur", time.Since(start).String(),
-			"request_id", httpx.RequestID(c.Request.Context()))
+
+		status := c.Writer.Status()
+		args := []any{
+			"method", c.Request.Method,
+			"path", c.Request.URL.Path,
+			"route", c.FullPath(),
+			"status", status,
+			"duration_ms", time.Since(start).Milliseconds(),
+			"bytes", c.Writer.Size(),
+			"client_ip", c.ClientIP(),
+			"request_id", httpx.RequestID(c.Request.Context()),
+		}
+		if len(c.Errors) > 0 {
+			args = append(args, "errors", c.Errors.String())
+		}
+		ctx := c.Request.Context()
+		switch {
+		case status >= 500:
+			log.Error(ctx, "http request", args...)
+		case status >= 400:
+			log.Warn(ctx, "http request", args...)
+		default:
+			log.Info(ctx, "http request", args...)
+		}
 	}
 }
+
+// AccessLog — устаревший алиас RequestLogger (совместимость с v0.1.x–v0.4.x).
+//
+// Deprecated: используйте RequestLogger.
+func AccessLog(log logger.Logger) gin.HandlerFunc { return RequestLogger(log) }
 
 // CORS — простой CORS. Для прод-сценариев со сложной политикой ставьте свой middleware через WithMiddleware.
 func CORS(allowOrigins ...string) gin.HandlerFunc {

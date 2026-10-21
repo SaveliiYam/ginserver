@@ -36,6 +36,16 @@ func (h *Handlers) List(c *gin.Context) ginserver.Result {
 Регистрация чистых обработчиков — `ginserver.NewRouter(engine)` или реестр
 yamlroutes; `Wrap` внутри библиотеки.
 
+## Логирование запросов (с v0.5.0)
+
+`RequestLogger` — обязательная middleware: ставится в `New` всегда,
+отключить нельзя. Каждый запрос — одна запись после завершения:
+поля `method, path, route, status, duration_ms, bytes, client_ip, request_id`
+(+ `errors`, если есть). Уровень по статусу: 5xx — error, 4xx — warn,
+иначе info. Логгер по умолчанию — slog JSON в stdout, свой — `WithLogger(...)`
+(например, `logger.Nop{}`, если логи ведёт внешняя система).
+`AccessLog` оставлен deprecated-алиасом.
+
 ## Ping
 
 По умолчанию регистрируется `GET /ping` → `200` без тела.
@@ -44,7 +54,7 @@ yamlroutes; `Wrap` внутри библиотеки.
 ## Установка
 
 ```bash
-go get github.com/SaveliiYam/ginserver@v0.4.0
+go get github.com/SaveliiYam/ginserver@v0.5.0
 ```
 
 Требуется Go ≥ 1.25.

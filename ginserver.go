@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -75,7 +76,7 @@ func WithLogger(l logger.Logger) Option {
 	}
 }
 
-// WithMiddleware добавляет gin-middleware (после встроенных RequestID/Recovery/AccessLog).
+// WithMiddleware добавляет gin-middleware (после встроенных RequestID/Recovery/RequestLogger).
 func WithMiddleware(mw ...gin.HandlerFunc) Option {
 	return func(s *Server) { s.extra = append(s.extra, mw...) }
 }
@@ -95,19 +96,22 @@ func PingHandler(c *gin.Context) { c.Status(http.StatusOK) }
 type Routes func(r gin.IRouter)
 
 // New создаёт Server. routes может быть nil (добавить позже через Engine/Group).
-// Встроенные middleware: RequestID, Recovery, AccessLog. Gin Recovery не ставится.
+//
+// Встроенные middleware (всегда, отключить нельзя): RequestID, Recovery,
+// RequestLogger — каждый запрос логируется одной записью. Логгер по умолчанию —
+// slog JSON в stdout; свой ставится через WithLogger.
 func New(cfg Config, routes Routes, opts ...Option) *Server {
 	cfg.withDefaults()
 	gin.SetMode(cfg.Mode)
 	e := gin.New()
 	_ = e.SetTrustedProxies(cfg.TrustedProxies)
 
-	s := &Server{cfg: cfg, engine: e, log: logger.Nop{}}
+	s := &Server{cfg: cfg, engine: e, log: logger.New("info", "json", os.Stdout)}
 	for _, o := range opts {
 		o(s)
 	}
 	// Порядок middleware: встроенные -> пользовательские -> хендлеры.
-	e.Use(RequestID(), Recovery(s.log), AccessLog(s.log))
+	e.Use(RequestID(), Recovery(s.log), RequestLogger(s.log))
 	if len(s.extra) > 0 {
 		e.Use(s.extra...)
 	}
