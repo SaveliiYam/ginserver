@@ -54,7 +54,7 @@ yamlroutes; `Wrap` внутри библиотеки.
 ## Установка
 
 ```bash
-go get github.com/SaveliiYam/ginserver@v0.5.0
+go get github.com/SaveliiYam/ginserver@v0.5.1
 ```
 
 Требуется Go ≥ 1.25.

@@ -66,13 +66,17 @@ func RequestLogger(log logger.Logger) gin.HandlerFunc {
 		c.Next()
 
 		status := c.Writer.Status()
+		size := c.Writer.Size()
+		if size < 0 { // gin возвращает -1, если тело не писали
+			size = 0
+		}
 		args := []any{
 			"method", c.Request.Method,
 			"path", c.Request.URL.Path,
 			"route", c.FullPath(),
 			"status", status,
 			"duration_ms", time.Since(start).Milliseconds(),
-			"bytes", c.Writer.Size(),
+			"bytes", size,
 			"client_ip", c.ClientIP(),
 			"request_id", httpx.RequestID(c.Request.Context()),
 		}
