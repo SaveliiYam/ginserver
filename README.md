@@ -35,7 +35,7 @@ e.POST("/users", ginserver.WrapStatus(http.StatusCreated, handlers.Create))
 ## Установка
 
 ```bash
-go get github.com/SaveliiYam/ginserver@v0.2.0
+go get github.com/SaveliiYam/ginserver@v0.3.0
 ```
 
 Требуется Go ≥ 1.25.
