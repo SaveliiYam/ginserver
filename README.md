@@ -8,24 +8,33 @@ Gin-сервер как `app.Component`: RequestID/Recovery/AccessLog/CORS, `Bin
 srv := ginserver.New(ginserver.Config{Addr: ":8080"}, routes, ginserver.WithLogger(log))
 ```
 
-## Конверт ответов (с v0.2.0)
+## Конверт ответов (с v0.4.0)
 
-Обработчики возвращают `(data, error)`, обёртка формирует единый ответ:
+Обработчик возвращает готовую модель `Result{Status, Body}` через утилиты —
+стабильный набор статусов: 200, 204, 401, 422, 500.
 
 ```go
-e.GET("/users", ginserver.Wrap(handlers.List))
-e.POST("/users", ginserver.WrapStatus(http.StatusCreated, handlers.Create))
+func (h *Handlers) List(c *gin.Context) ginserver.Result {
+	users, err := h.svc.List(c.Request.Context())
+	if err != nil {
+		return ginserver.Unprocessable(err) // 422, ошибка обязательна
+	}
+	return ginserver.Data(users) // 200 {"data": [...]}
+}
 ```
 
-| Результат | Ответ |
-|---|---|
-| `(объект, nil)` | `200 {"data": {...}}` |
-| `(массив, nil)` | `200 {"data": [...]}` (пустой массив сохраняется) |
-| `(nil, ошибка)` | статус из ошибки, `{"errors": [{"code", "message"}]}` |
-| `(nil, nil)` | `204 No Content` без тела |
+| Утилита | Статус | Тело |
+|---|---|---|
+| `Data(data)` | 200 | `{"data": ...}` (пустой массив сохраняется) |
+| `Empty()` | 204 | без тела |
+| `Unauthorized(err)` | 401 | `{"errors":[{code,message}]}` |
+| `Unprocessable(err)` | 422 | из ошибки берутся код/сообщение |
+| `Internal(err)` | 500 | общее `internal error`, текст ошибки наружу не попадает |
 
-Поля — с omitempty-семантикой: `"data": null` и пустой `"errors": []`
-в ответы не попадают.
+Тело — глобальная структура `EnvelopeJSON{Data *any, Errors []ErrorBody}`
+с omitempty: `"data": null` и пустой `"errors"` в ответы не попадают.
+Регистрация чистых обработчиков — `ginserver.NewRouter(engine)` или реестр
+yamlroutes; `Wrap` внутри библиотеки.
 
 ## Ping
 
@@ -35,7 +44,7 @@ e.POST("/users", ginserver.WrapStatus(http.StatusCreated, handlers.Create))
 ## Установка
 
 ```bash
-go get github.com/SaveliiYam/ginserver@v0.3.0
+go get github.com/SaveliiYam/ginserver@v0.4.0
 ```
 
 Требуется Go ≥ 1.25.

@@ -1,7 +1,7 @@
 package ginserver_test
 
 import (
-	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -18,49 +18,56 @@ func serve(e *gin.Engine, path string) *httptest.ResponseRecorder {
 	return w
 }
 
-func engineWith(path string, h gin.HandlerFunc) *gin.Engine {
+func engineWith(path string, h ginserver.HandlerFunc) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	e := gin.New()
-	e.GET(path, h)
+	e.GET(path, ginserver.Wrap(h))
 	return e
 }
 
-func TestWrapOmitsEmptyFields(t *testing.T) {
-	// объект: только data, без errors и без null
-	e := engineWith("/obj", ginserver.Wrap(func(*gin.Context) (any, error) {
-		return gin.H{"id": "1"}, nil
-	}))
-	if body := serve(e, "/obj").Body.String(); body != "{\"data\":{\"id\":\"1\"}}" {
-		t.Fatalf("object: %s", body)
+func TestResultUtilities(t *testing.T) {
+	// 200 объект: только data
+	e := engineWith("/obj", func(*gin.Context) ginserver.Result { return ginserver.Data(gin.H{"id": "1"}) })
+	if w := serve(e, "/obj"); w.Code != 200 || w.Body.String() != `{"data":{"id":"1"}}` {
+		t.Fatalf("obj: %d %s", w.Code, w.Body)
 	}
-	// пустой массив: data: [] сохраняется
-	e = engineWith("/arr", ginserver.Wrap(func(*gin.Context) (any, error) {
-		return []string{}, nil
-	}))
-	if body := serve(e, "/arr").Body.String(); body != "{\"data\":[]}" {
-		t.Fatalf("empty array: %s", body)
+	// 200 пустой массив сохраняется
+	e = engineWith("/arr", func(*gin.Context) ginserver.Result { return ginserver.Data([]string{}) })
+	if w := serve(e, "/arr"); w.Body.String() != `{"data":[]}` {
+		t.Fatalf("arr: %s", w.Body)
 	}
-	// ошибка: только errors, без data
-	e = engineWith("/err", ginserver.Wrap(func(*gin.Context) (any, error) {
-		return nil, httpx.NotFound("user not found")
-	}))
-	w := serve(e, "/err")
-	var env map[string]json.RawMessage
-	_ = json.Unmarshal(w.Body.Bytes(), &env)
-	if w.Code != 404 {
-		t.Fatalf("err code = %d", w.Code)
+	// 204 без тела
+	e = engineWith("/none", func(*gin.Context) ginserver.Result { return ginserver.Empty() })
+	if w := serve(e, "/none"); w.Code != 204 || w.Body.Len() != 0 {
+		t.Fatalf("none: %d %q", w.Code, w.Body)
 	}
-	if _, hasData := env["data"]; hasData {
-		t.Fatalf("error body must omit data: %s", w.Body)
+	// 401
+	e = engineWith("/unauth", func(*gin.Context) ginserver.Result {
+		return ginserver.Unauthorized(errors.New("bad token"))
+	})
+	if w := serve(e, "/unauth"); w.Code != 401 || w.Body.String() != `{"errors":[{"code":"unauthorized","message":"bad token"}]}` {
+		t.Fatalf("unauth: %d %s", w.Code, w.Body)
 	}
-	if _, hasErrors := env["errors"]; !hasErrors {
-		t.Fatalf("error body must have errors: %s", w.Body)
+	// 422 берёт сообщение из ошибки
+	e = engineWith("/unp", func(*gin.Context) ginserver.Result {
+		return ginserver.Unprocessable(errors.New("name is required"))
+	})
+	if w := serve(e, "/unp"); w.Code != 422 || w.Body.String() != `{"errors":[{"code":"unprocessable_entity","message":"name is required"}]}` {
+		t.Fatalf("unp: %d %s", w.Code, w.Body)
 	}
-	// нет данных: 204 без тела
-	e = engineWith("/none", ginserver.Wrap(func(*gin.Context) (any, error) { return nil, nil }))
-	w = serve(e, "/none")
-	if w.Code != http.StatusNoContent || w.Body.Len() != 0 {
-		t.Fatalf("no content: %d %q", w.Code, w.Body.String())
+	// 500 не светит внутреннюю ошибку
+	e = engineWith("/int", func(*gin.Context) ginserver.Result {
+		return ginserver.Internal(errors.New("db connection refused at 10.0.0.5"))
+	})
+	if w := serve(e, "/int"); w.Code != 500 || w.Body.String() != `{"errors":[{"code":"internal","message":"internal error"}]}` {
+		t.Fatalf("int: %d %s", w.Code, w.Body)
+	}
+	// httpx-ошибка внутри Unprocessable отдаёт свой код
+	e = engineWith("/unp2", func(*gin.Context) ginserver.Result {
+		return ginserver.Unprocessable(httpx.NotFound("user not found"))
+	})
+	if w := serve(e, "/unp2"); w.Code != 422 || w.Body.String() != `{"errors":[{"code":"not_found","message":"user not found"}]}` {
+		t.Fatalf("unp2: %d %s", w.Code, w.Body)
 	}
 }
 

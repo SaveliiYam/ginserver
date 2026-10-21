@@ -6,12 +6,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Router — gin-роутер, принимающий чистые HandlerFunc: Wrap делается внутри,
-// в прикладном коде обёртку писать не нужно.
+// Router — gin-роутер, принимающий чистые HandlerFunc, возвращающие Result.
+// Оборачивание (Wrap) делается внутри: в прикладном коде обёрток нет,
+// статус обработчик задаёт сам утилитами Data/Empty/Unauthorized/...:
 //
 //	pr := ginserver.NewRouter(engine)
 //	pr.GET("/users", handlers.List)
-//	pr.POST("/users", handlers.Create, http.StatusCreated) // необязательный статус
 //	api := pr.Group("/api/v1")
 type Router struct {
 	r gin.IRouter
@@ -32,30 +32,12 @@ func (rt *Router) Group(prefix string, mw ...gin.HandlerFunc) *Router {
 }
 
 // Handle регистрирует чистый обработчик на method+path.
-// status — необязательный статус успеха (по умолчанию 200).
-func (rt *Router) Handle(method, path string, h HandlerFunc, status ...int) {
-	rt.r.Handle(method, path, WrapStatus(pickStatus(status), h))
+func (rt *Router) Handle(method, path string, h HandlerFunc) {
+	rt.r.Handle(method, path, Wrap(h))
 }
 
-func (rt *Router) GET(path string, h HandlerFunc, status ...int) {
-	rt.Handle(http.MethodGet, path, h, status...)
-}
-func (rt *Router) POST(path string, h HandlerFunc, status ...int) {
-	rt.Handle(http.MethodPost, path, h, status...)
-}
-func (rt *Router) PUT(path string, h HandlerFunc, status ...int) {
-	rt.Handle(http.MethodPut, path, h, status...)
-}
-func (rt *Router) PATCH(path string, h HandlerFunc, status ...int) {
-	rt.Handle(http.MethodPatch, path, h, status...)
-}
-func (rt *Router) DELETE(path string, h HandlerFunc, status ...int) {
-	rt.Handle(http.MethodDelete, path, h, status...)
-}
-
-func pickStatus(status []int) int {
-	if len(status) > 0 && status[0] > 0 {
-		return status[0]
-	}
-	return http.StatusOK
-}
+func (rt *Router) GET(path string, h HandlerFunc)    { rt.Handle(http.MethodGet, path, h) }
+func (rt *Router) POST(path string, h HandlerFunc)   { rt.Handle(http.MethodPost, path, h) }
+func (rt *Router) PUT(path string, h HandlerFunc)    { rt.Handle(http.MethodPut, path, h) }
+func (rt *Router) PATCH(path string, h HandlerFunc)  { rt.Handle(http.MethodPatch, path, h) }
+func (rt *Router) DELETE(path string, h HandlerFunc) { rt.Handle(http.MethodDelete, path, h) }
