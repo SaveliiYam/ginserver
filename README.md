@@ -28,6 +28,8 @@ func (h *Handlers) List(c *gin.Context) ginserver.Result {
 | `Data(data)` | 200 | `{"data": ...}` (пустой массив сохраняется) |
 | `Empty()` | 204 | без тела |
 | `Unauthorized(err)` | 401 | `{"errors":[{code,message}]}` |
+| `InvalidToken(err)` | 401 | code `invalid_token` (битый/просроченный JWT) |
+| `Validation(msg)` | 422 | code `validation` (входные данные) |
 | `Unprocessable(err)` | 422 | из ошибки берутся код/сообщение |
 | `Internal(err)` | 500 | общее `internal error`, текст ошибки наружу не попадает |
 
@@ -51,10 +53,43 @@ yamlroutes; `Wrap` внутри библиотеки.
 По умолчанию регистрируется `GET /ping` → `200` без тела.
 Отключить: `ginserver.WithoutPing()` или `Config.DisablePing: true`.
 
+## HTTP-модуль из JSON (с v0.7.0)
+
+Секция `http.json` + `config.Apply` без копипасты в каждом сервисе:
+
+```go
+httpCfg := ginserver.DefaultModuleConfig()
+_, _ = config.LoadSection(boot, "http", &httpCfg)
+transport := ginserver.NewModule()
+_ = config.Apply(ctx, transport, httpCfg)
+
+srv := ginserver.New(transport.ServerConfig(), routes)
+_ = transport.Config().RoutesFile // yamlroutes
+```
+
+Поля: `addr`, `gin_mode`, `routes_file`, `routes_mode` (`yaml`|`code`).
+
+## Basic Auth (с v0.6.0)
+
+Учётки — JSON-файл `{"login1":"password1","login2":"password2"}`
+или `ginserver.Accounts` из конфига. Пустой map — middleware no-op.
+
+```go
+accounts, err := ginserver.LoadAccountsJSON("config/dev/jwt/basic_auth.json")
+// или Decode в Accounts из секции конфига
+
+r.Use(ginserver.BasicAuth(accounts,
+    ginserver.WithRealm("jwt"),
+    ginserver.WithSkipPaths("/healthz", "/ping"), // так и по умолчанию
+))
+```
+
+При отказе — `401` в конверте `{"errors":[...]}` и заголовок `WWW-Authenticate`.
+
 ## Установка
 
 ```bash
-go get github.com/SaveliiYam/ginserver@v0.5.1
+go get github.com/SaveliiYam/ginserver@v0.7.0
 ```
 
 Требуется Go ≥ 1.25.

@@ -59,8 +59,26 @@ func Unauthorized(err error) Result {
 	return errorResult(http.StatusUnauthorized, "unauthorized", "unauthorized", err)
 }
 
+// InvalidToken — 401 для битого / просроченного / чужого JWT.
+// Текст err наружу не попадает (логируйте до возврата); клиент видит "invalid token".
+func InvalidToken(err error) Result {
+	_ = err
+	return Result{
+		Status: http.StatusUnauthorized,
+		Body:   EnvelopeJSON{Errors: []ErrorBody{{Code: "invalid_token", Message: "invalid token"}}},
+	}
+}
+
+// Validation — 400 для ошибок входных данных (пустое поле, неверный enum, …).
+func Validation(err error) Result {
+	return Result{
+		Status: http.StatusBadRequest,
+		Body:   EnvelopeJSON{Errors: []ErrorBody{{Code: "validation", Message: err.Error()}}},
+	}
+}
+
 // Unprocessable — 422. err обязателен по смыслу: из него берутся код/сообщение;
-// при nil подставится общее сообщение.
+// при nil подставится общее сообщение. Для типовой валидации предпочитайте Validation.
 func Unprocessable(err error) Result {
 	return errorResult(http.StatusUnprocessableEntity, "unprocessable_entity", "unprocessable entity", err)
 }

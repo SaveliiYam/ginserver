@@ -48,6 +48,20 @@ func TestResultUtilities(t *testing.T) {
 	if w := serve(e, "/unauth"); w.Code != 401 || w.Body.String() != `{"errors":[{"code":"unauthorized","message":"bad token"}]}` {
 		t.Fatalf("unauth: %d %s", w.Code, w.Body)
 	}
+	// 401 invalid token
+	e = engineWith("/tok", func(*gin.Context) ginserver.Result {
+		return ginserver.InvalidToken(nil)
+	})
+	if w := serve(e, "/tok"); w.Code != 401 || w.Body.String() != `{"errors":[{"code":"invalid_token","message":"invalid token"}]}` {
+		t.Fatalf("tok: %d %s", w.Code, w.Body)
+	}
+	// 422 validation
+	e = engineWith("/val", func(*gin.Context) ginserver.Result {
+		return ginserver.Validation("user_uuid is required")
+	})
+	if w := serve(e, "/val"); w.Code != 422 || w.Body.String() != `{"errors":[{"code":"validation","message":"user_uuid is required"}]}` {
+		t.Fatalf("val: %d %s", w.Code, w.Body)
+	}
 	// 422 берёт сообщение из ошибки
 	e = engineWith("/unp", func(*gin.Context) ginserver.Result {
 		return ginserver.Unprocessable(errors.New("name is required"))
