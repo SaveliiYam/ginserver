@@ -55,43 +55,43 @@ func Empty() Result {
 }
 
 // Unauthorized — 401. err можно передать nil (будет общее сообщение).
-func Unauthorized(err error) Result {
-	return errorResult(http.StatusUnauthorized, "unauthorized", "unauthorized", err)
+func Unauthorized(errCode string, err error) Result {
+	return errorResult(http.StatusUnauthorized, errCode, "unauthorized", err)
 }
 
 // InvalidToken — 401 для битого / просроченного / чужого JWT.
 // Текст err наружу не попадает (логируйте до возврата); клиент видит "invalid token".
-func InvalidToken(err error) Result {
+func InvalidToken(errCode string, err error) Result {
 	_ = err
 	return Result{
 		Status: http.StatusUnauthorized,
-		Body:   EnvelopeJSON{Errors: []ErrorBody{{Code: "invalid_token", Message: "invalid token"}}},
+		Body:   EnvelopeJSON{Errors: []ErrorBody{{Code: errCode, Message: "invalid token"}}},
 	}
 }
 
 // Validation — 400 для ошибок входных данных (пустое поле, неверный enum, …).
-func Validation(err error) Result {
+func Validation(errCode string, err error) Result {
 	return Result{
 		Status: http.StatusBadRequest,
-		Body:   EnvelopeJSON{Errors: []ErrorBody{{Code: "validation", Message: err.Error()}}},
+		Body:   EnvelopeJSON{Errors: []ErrorBody{{Code: errCode, Message: err.Error()}}},
 	}
 }
 
 // Unprocessable — 422. err обязателен по смыслу: из него берутся код/сообщение;
 // при nil подставится общее сообщение. Для типовой валидации предпочитайте Validation.
-func Unprocessable(err error) Result {
-	return errorResult(http.StatusUnprocessableEntity, "unprocessable_entity", "unprocessable entity", err)
+func Unprocessable(errCode string, err error) Result {
+	return errorResult(http.StatusUnprocessableEntity, errCode, "unprocessable entity", err)
 }
 
 // Internal — 500. err обязателен, но наружу его текст НЕ попадает:
 // клиент получает общее "internal error", детализацию логируйте до возврата.
-func Internal(err error) Result {
+func Internal(errCode string, err error) Result {
 	if err == nil {
 		err = errors.New("internal error")
 	}
 	return Result{
 		Status: http.StatusInternalServerError,
-		Body:   EnvelopeJSON{Errors: []ErrorBody{{Code: "internal", Message: "internal error"}}},
+		Body:   EnvelopeJSON{Errors: []ErrorBody{{Code: errCode, Message: err.Error()}}},
 	}
 }
 

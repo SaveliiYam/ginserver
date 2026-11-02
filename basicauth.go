@@ -101,7 +101,7 @@ func BasicAuth(accounts Accounts, opts ...BasicAuthOption) gin.HandlerFunc {
 
 func unauthorized(c *gin.Context, realmHeader string) {
 	c.Header("WWW-Authenticate", realmHeader)
-	res := Unauthorized(nil)
+	res := Unauthorized("basic-auth-unauthorized", nil)
 	c.AbortWithStatusJSON(res.Status, res.Body)
 }
 
